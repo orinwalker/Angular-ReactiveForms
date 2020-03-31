@@ -1,7 +1,34 @@
 import { Component, OnInit } from '@angular/core';
-import { FormGroup, FormBuilder } from '@angular/forms';
+import { FormGroup, FormBuilder, Validators, ValidatorFn, AbstractControl } from '@angular/forms';
 
 import { Customer } from './customer';
+
+
+
+// the ratingRange is a factory function that returns a validator function
+// ValidatorFn is the return type
+function ratingRange(min: number, max: number): ValidatorFn {
+  return (c: AbstractControl): { [key: string]: boolean } | null => {
+    if (c.value !== null && (isNaN(c.value) || c.value < min || c.value > max)) {
+      return { range: true };
+    }
+    return null;
+  };
+}
+
+function emailMatcher(c: AbstractControl): { [key: string]: boolean } | null {
+  const emailControl = c.get('email');
+  const confirmControl = c.get('confirmEmail');
+  console.log(`Inside emailMatcher, email: ${emailControl.value}, confirmEmail: ${confirmControl.value}`);
+
+  if (emailControl.pristine || confirmControl.pristine) {
+    return null;
+  }
+  if (emailControl.value === confirmControl.value) {
+    return null;
+  }
+  return { match: true };
+}
 
 @Component({
   selector: 'app-customer',
@@ -17,25 +44,39 @@ export class CustomerComponent implements OnInit {
   ngOnInit() {
 
     this.customerForm = this.fb.group({
-      firstName: '',
-      lastName: '',
-      email: '',
-      sendCatalog: true,
+      firstName: ['', [Validators.required, Validators.minLength(3)]],
+      lastName: ['', [Validators.required, Validators.maxLength(50)]],
+      emailGroup: this.fb.group( {
+        email: ['', [Validators.required, Validators.email]],
+        confirmEmail: ['', Validators.required],
+      }, { validator: emailMatcher} ),
+      phone: '',
+      notification: 'email',
+      rating: [null, ratingRange(1, 5)],
+      sendCatalog: true
     });
 
-    // this is the form model, it tracks the form value and state
-    // this is not the same as the data model (customer class)
-    // this.customerForm = new FormGroup({
-    //   firstName: new FormControl(),
-    //   lastName: new FormControl(),
-    //   email: new FormControl(),
-    //   sendCatalog: new FormControl(true),
-    // });
+    this.customerForm.get('notification').valueChanges.subscribe(
+      value => this.setNotification(value)
+    );
+
   }
+
+
 
   save() {
     console.log(this.customerForm);
     console.log('Saved: ' + JSON.stringify(this.customerForm.value));
+  }
+
+  setNotification(notifyVia: string): void {
+    const phoneControl = this.customerForm.get('phone');
+    if (notifyVia === 'text') {
+      phoneControl.setValidators(Validators.required);
+    } else {
+      phoneControl.clearValidators();
+    }
+    phoneControl.updateValueAndValidity();
   }
 
   populateTestData() {
